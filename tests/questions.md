@@ -5,7 +5,7 @@ with `User-Agent: usedby-skill/0.1 (+https://github.com/ckrzento/usedby-skill)` 
 (these were the owner's own test calls, so they are labelled internal and do not count as third-party usage).
 The runs used pre-encoded URLs; the curl lines below are the `--data-urlencode` equivalent that the skill writes.
 
-Total calls this session: 26 (4 exploration, 20 questions, 2 retries). Quota: 300 an hour per client, so 26 is under 9%. No 429.
+Total calls this session: 29 (4 exploration, 20 questions, 2 retries, 3 dry runs below). Quota: 300 an hour per client, so 29 is under 10%. No 429.
 
 Pass criterion: the answer the skill can write is **usable** (it answers the question) and **citable** (each line has a source URL).
 
@@ -299,3 +299,27 @@ Verdict: **PASS**. Out of scope by design (code dependency, not a tool companies
 - **q11**: usedby holds no `certifications` evidence for the workflow-automation pilot tools. Fix on usedby's side (capture security pages for those tools). Not a skill bug.
 - **q14**: `recent_changes` cannot tell "no new customer" from "not tracked". The SKILL.md now tells the agent to say both are possible; a `tracked: true|false` field per tool on usedby's side would settle it.
 - **q18**: the peers `clarify` answer lists the first 5 industries in alphabetical order, not the closest ones. The SKILL.md now tells the agent to retry once with a more specific term. Fix on usedby's side: rank candidates by similarity to the input.
+
+## Dry run: following SKILL.md as the agent
+
+Three new questions, run exactly as SKILL.md v1 says (`-sS -i -G --data-urlencode`, `host=claude-code`).
+
+1. **"Should we use Granola or Fireflies? We're a 20-person legaltech startup."**
+   Call: `compare?a=granola&b=fireflies&limit=5`. Result: Granola 23 companies (4 CONFIRMED, 19 OBSERVED),
+   Fireflies 71 (56 CONFIRMED, 15 OBSERVED), 1 shared company (Vercel, OBSERVED on both).
+   Source: https://www.usedby.ai/compare/fireflies-vs-granola.
+   **Ambiguity**: v1 said "company context goes to what_peers_use first" and "X vs Y goes to compare".
+   Both matched. **Fix**: named candidates go to `compare` first; peers only if asked.
+2. **"Who uses Glean in fintech?"**
+   Call: `tools/glean/customers?industry=fintech&limit=5`. Result: 6 of 58 match Fintech & Payments:
+   Wealthsimple, GCash, Super (CONFIRMED, case studies on glean.com), Intuit, Bill (OBSERVED, logo wall).
+   Source: https://www.usedby.ai/tools/glean. No ambiguity. The OBSERVED lines must read "listed by
+   Glean as a customer", not "case study": the rule covered it.
+3. **"What does Stripe use for customer support?"**
+   Call: `companies/stripe/stack?limit=10`. Result: 23 tools; Assembled (Contact center AI, OBSERVED,
+   logo wall) is the only support-related line among the 10 returned. Source: https://www.usedby.ai/companies/stripe.
+   **Ambiguity**: no category filter on the server, and `limit=10` returned 10 of 23 lines, so a
+   support tool could be missing. **Fix**: for "what does Y use for Z", call with `limit=50` and
+   filter `listed[].category` locally; say when `truncated` is true.
+
+Also added after q14: for "who adopted X recently", read `who_uses` and `firstPublicProof` too.
